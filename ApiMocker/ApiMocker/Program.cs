@@ -30,4 +30,5 @@ app.Run(async context =>
     }
 });
 
-await app.RunAsync(configuration.Server.Url);
+var url = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? configuration.Server.Url;
+await app.RunAsync(url);

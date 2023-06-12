@@ -16,7 +16,11 @@ public sealed class ConfigurationReader: IDisposable
 
     public ConfigurationReader()
     {
-        var path = Environment.GetEnvironmentVariable("API_MOCKER_CONFIG") ?? "./config.yaml";
+        var path = Environment.GetEnvironmentVariable("API_MOCKER_CONFIG");
+        if (string.IsNullOrEmpty(path))
+        {
+            throw new Exception("Not configuration path is defined. Set API_MOCKER_CONFIG env variable");
+        }
         configPath = Path.GetFullPath(path);
         deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
