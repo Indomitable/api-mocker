@@ -2,14 +2,28 @@ using System.IO.Pipelines;
 using System.Text;
 using ApiMocker.Models;
 using Microsoft.AspNetCore.WebUtilities;
+using YamlDotNet.Core;
 using YamlDotNet.Serialization.NamingConventions;
 
-var text = File.ReadAllText("config.yaml");
+var config = File.ReadAllText("config.yaml");
 var deserializer = new YamlDotNet.Serialization.DeserializerBuilder()
     .WithNamingConvention(CamelCaseNamingConvention.Instance)
     .Build();
 
-var mockConfiguration = deserializer.Deserialize<MockConfiguration>(text);
+MockConfiguration mockConfiguration;
+try
+{
+    mockConfiguration = deserializer.Deserialize<MockConfiguration>(config);
+}
+catch (YamlException e)
+{
+    Console.WriteLine($"Unable to deserialize the configuration. Problem location: ({e.Start}) - ({e.End})");
+    return;
+}
+if (!mockConfiguration.Verify())
+{
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
