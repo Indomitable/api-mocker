@@ -30,12 +30,12 @@ var app = builder.Build();
 
 var matcher = new RequestMatcher(mockConfiguration);
 var handler = new RequestHandler(mockConfiguration);
-app.Run(async (context) =>
+app.Run(async context =>
 {
     switch (matcher.TryMatch(context))
     {
         case MatchResult.SuccessResult result:
-            await handler.Handle(context, result.Mock);
+            await handler.Handle(context, result);
             break;
         case MatchResult.AmbiguousMocks ambiguousMocks:
         {

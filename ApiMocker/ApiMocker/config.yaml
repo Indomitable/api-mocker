@@ -11,7 +11,7 @@ server:
         Content-Type: text/plain
       file: ./content.json
     - path: /test/(?<id>\d+)
-      method: DELETE
-      statusCode: 204
+      method: POST
+      statusCode: 201
       body: |
-        { "deleted": true }
+        { "id": ${id} }

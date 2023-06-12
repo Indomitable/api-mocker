@@ -14,8 +14,9 @@ public sealed class RequestHandler
         this.configuration = configuration;
     }
 
-    public async Task Handle(HttpContext context, RequestMock mock)
+    public async Task Handle(HttpContext context, MatchResult.SuccessResult result)
     {
+        var mock = result.Mock;
         context.Response.StatusCode = mock.StatusCode;
         var headers = mock.Headers.Union(
             configuration.Server.Headers.Where(sh =>
@@ -36,9 +37,18 @@ public sealed class RequestHandler
 
         if (mock.Body is not null)
         {
-            context.Response.ContentLength = Encoding.UTF8.GetByteCount(mock.Body);
+            var body = mock.Body;
+            foreach (var (key, value) in result.PathCaptureGroups)
+            {
+                var searchArg = $"${{{key}}}";
+                if (body.Contains(searchArg))
+                {
+                    body = body.Replace(searchArg, value);
+                }
+            }
+            context.Response.ContentLength = Encoding.UTF8.GetByteCount(body);
             await using var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
-            await httpWriter.WriteAsync(mock.Body);
+            await httpWriter.WriteAsync(body);
             await httpWriter.FlushAsync();
         }
         else if (mock.File is not null)
