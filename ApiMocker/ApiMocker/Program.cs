@@ -27,7 +27,11 @@ foreach (var mock in mockConfiguration.Server.Mocks)
     app.MapMethods(mock.Path, new[] {mock.Method}, async context =>
     {
         context.Response.StatusCode = mock.StatusCode;
-        foreach (var (key, value) in mockConfiguration.Server.Headers.Union(mock.Headers))
+        var headers = mock.Headers.Union(
+                mockConfiguration.Server.Headers.Where(sh =>
+                    !mock.Headers.Any(mh => string.Equals(sh.Key, mh.Key, StringComparison.OrdinalIgnoreCase)))
+            );
+        foreach (var (key, value) in headers)
         {
             context.Response.Headers.Add(key, value);
         }
