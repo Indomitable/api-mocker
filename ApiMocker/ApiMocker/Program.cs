@@ -1,7 +1,5 @@
-using System.IO.Pipelines;
-using System.Text;
+using ApiMocker;
 using ApiMocker.Models;
-using Microsoft.AspNetCore.WebUtilities;
 using YamlDotNet.Core;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -26,64 +24,32 @@ if (!mockConfiguration.Verify())
 }
 
 var builder = WebApplication.CreateBuilder(args);
-
-builder.WebHost
-    .UseKestrel(k =>
-        {
-            k.AddServerHeader = false;
-        }
-    )
-    .UseUrls(mockConfiguration.Server.Url);
+builder.WebHost.UseKestrel(k => { k.AddServerHeader = false; });
 
 var app = builder.Build();
 
-foreach (var mock in mockConfiguration.Server.Mocks)
+var matcher = new RequestMatcher(mockConfiguration);
+var handler = new RequestHandler(mockConfiguration);
+app.Run(async (context) =>
 {
-    app.MapMethods(mock.Path, new[] {mock.Method}, async context =>
+    switch (matcher.TryMatch(context))
     {
-        context.Response.StatusCode = mock.StatusCode;
-        var headers = mock.Headers.Union(
-                mockConfiguration.Server.Headers.Where(sh =>
-                    !mock.Headers.Any(mh => string.Equals(sh.Key, mh.Key, StringComparison.OrdinalIgnoreCase)))
-            );
-        foreach (var (key, value) in headers)
+        case MatchResult.SuccessResult result:
+            await handler.Handle(context, result.Mock);
+            break;
+        case MatchResult.AmbiguousMocks ambiguousMocks:
         {
-            context.Response.Headers.Add(key, value);
+            var message = $"More than one mocks can handle this request! Method: {context.Request.Method}, Request: {context.Request.Path}, Mock Path: {ambiguousMocks.Path}";
+            await handler.ErrorHandle(context, message);
+            break;
         }
-
-        if (mock.Body is not null)
+        case MatchResult.NoMatch:
         {
-            context.Response.ContentLength = Encoding.UTF8.GetByteCount(mock.Body);
-            await using var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
-            await httpWriter.WriteAsync(mock.Body);
-            await httpWriter.FlushAsync();
+            var message = $"No mocks configured for this request. Method: {context.Request.Method}, Request: {context.Request.Path}";
+            await handler.ErrorHandle(context, message);
+            break;
         }
-        else if (mock.File is not null)
-        {
-            await using var fileStream = File.Open(mock.File, FileMode.Open, FileAccess.Read);
-            context.Response.ContentLength = fileStream.Length;
-            // await fileStream.CopyToAsync(context.Response.Body);
-            await fileStream.CopyToAsync(context.Response.BodyWriter);
-        }
-        await context.Response.CompleteAsync();
-    });
-}
-
-app.MapWhen(context =>
-{
-    var paths = mockConfiguration.Server.Mocks.Select(m => m.Path);
-    return paths.All(p => !context.Request.Path.Equals(p));
-}, applicationBuilder =>
-{
-    applicationBuilder.Use(async (context, next) =>
-    {
-        const string text = "Path is not mocked";
-        context.Response.ContentLength = Encoding.UTF8.GetByteCount(text);
-        var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
-        await httpWriter.WriteAsync(text);
-        await httpWriter.FlushAsync();
-        await next(context);
-    });
+    }
 });
 
-await app.RunAsync();
+await app.RunAsync(mockConfiguration.Server.Url);
