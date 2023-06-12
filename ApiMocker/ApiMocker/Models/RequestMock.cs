@@ -7,4 +7,5 @@ public sealed class RequestMock
     public int StatusCode { get; set; } = StatusCodes.Status200OK;
     public Dictionary<string, string> Headers { get; set; } = new ();
     public string? Body { get; set; }
+    public string? File { get; set; }
 }

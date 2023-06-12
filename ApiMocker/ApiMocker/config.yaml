@@ -8,8 +8,5 @@ server:
       statusCode: 200
       headers:
         x-message: test
-      body: |
-        {
-          "testString": "Test Value",
-          "testNumber": 1
-        }
+        Content-Type: text/plain
+      file: ./content.json

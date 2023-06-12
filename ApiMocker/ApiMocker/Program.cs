@@ -1,3 +1,4 @@
+using System.IO.Pipelines;
 using System.Text;
 using ApiMocker.Models;
 using Microsoft.AspNetCore.WebUtilities;
@@ -36,10 +37,21 @@ foreach (var mock in mockConfiguration.Server.Mocks)
             context.Response.Headers.Add(key, value);
         }
 
-        context.Response.ContentLength = Encoding.UTF8.GetByteCount(mock.Body);
-        await using var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
-        await httpWriter.WriteAsync(mock.Body);
-        await httpWriter.FlushAsync();
+        if (mock.Body is not null)
+        {
+            context.Response.ContentLength = Encoding.UTF8.GetByteCount(mock.Body);
+            await using var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
+            await httpWriter.WriteAsync(mock.Body);
+            await httpWriter.FlushAsync();
+        }
+        else if (mock.File is not null)
+        {
+            await using var fileStream = File.Open(mock.File, FileMode.Open, FileAccess.Read);
+            context.Response.ContentLength = fileStream.Length;
+            // await fileStream.CopyToAsync(context.Response.Body);
+            await fileStream.CopyToAsync(context.Response.BodyWriter);
+        }
+        await context.Response.CompleteAsync();
     });
 }
 
