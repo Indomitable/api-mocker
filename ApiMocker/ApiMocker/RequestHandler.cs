@@ -7,22 +7,18 @@ namespace ApiMocker;
 
 public sealed class RequestHandler
 {
-    private readonly MockConfiguration configuration;
+    private readonly Server server;
 
-    public RequestHandler(MockConfiguration configuration)
+    public RequestHandler(Server server)
     {
-        this.configuration = configuration;
+        this.server = server;
     }
 
     public async Task Handle(HttpContext context, MatchResult.SuccessResult result)
     {
         var mock = result.Mock;
         context.Response.StatusCode = mock.StatusCode;
-        var headers = mock.Headers.Union(
-            configuration.Server.Headers.Where(sh =>
-                !mock.Headers.Any(mh => string.Equals(sh.Key, mh.Key, StringComparison.OrdinalIgnoreCase)))
-        );
-        foreach (var (key, value) in headers)
+        foreach (var (key, value) in mock.Headers)
         {
             context.Response.Headers.Add(key, value);
         }
@@ -37,15 +33,7 @@ public sealed class RequestHandler
 
         if (mock.Body is not null)
         {
-            var body = mock.Body;
-            foreach (var (key, value) in result.PathCaptureGroups)
-            {
-                var searchArg = $"${{{key}}}";
-                if (body.Contains(searchArg))
-                {
-                    body = body.Replace(searchArg, value);
-                }
-            }
+            var body = Interpolate(mock.Body, result.Variables);
             context.Response.ContentLength = Encoding.UTF8.GetByteCount(body);
             await using var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
             await httpWriter.WriteAsync(body);
@@ -53,7 +41,8 @@ public sealed class RequestHandler
         }
         else if (mock.File is not null)
         {
-            await using var fileStream = File.Open(mock.File, FileMode.Open, FileAccess.Read);
+            var file = Interpolate(mock.File, result.Variables);
+            await using var fileStream = File.Open(file, FileMode.Open, FileAccess.Read);
             context.Response.ContentLength = fileStream.Length;
             // await fileStream.CopyToAsync(context.Response.Body);
             await fileStream.CopyToAsync(context.Response.BodyWriter);
@@ -66,6 +55,19 @@ public sealed class RequestHandler
     private bool CanWriteResponseBody(int statusCode) => statusCode != StatusCodes.Status204NoContent &&
                                                          statusCode != StatusCodes.Status205ResetContent &&
                                                          statusCode != StatusCodes.Status304NotModified;
+
+    private string Interpolate(string template, Dictionary<string, string> variables)
+    {
+        foreach (var (key, value) in variables)
+        {
+            var searchArg = $"${{{key}}}";
+            if (template.Contains(searchArg))
+            {
+                template = template.Replace(searchArg, value);
+            }
+        }
+        return template;
+    }
 
     public async Task ErrorHandle(HttpContext context, string message)
     {

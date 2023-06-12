@@ -1,35 +1,24 @@
 using ApiMocker;
-using ApiMocker.Models;
-using YamlDotNet.Core;
-using YamlDotNet.Serialization.NamingConventions;
 
-var config = File.ReadAllText("config.yaml");
-var deserializer = new YamlDotNet.Serialization.DeserializerBuilder()
-    .WithNamingConvention(CamelCaseNamingConvention.Instance)
-    .Build();
-
-MockConfiguration mockConfiguration;
-try
-{
-    mockConfiguration = deserializer.Deserialize<MockConfiguration>(config);
-}
-catch (YamlException e)
-{
-    Console.WriteLine($"Unable to deserialize the configuration. Problem location: ({e.Start}) - ({e.End})");
-    return;
-}
-if (!mockConfiguration.Verify())
+var server = new ConfigurationReader().Read();
+if (server is null)
 {
     return;
 }
 
-var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine("Mocking requests");
+foreach (var mock in server.Mocks)
+{
+    Console.WriteLine($"{mock.Method} {mock.Path}");
+}
+
+var builder = WebApplication.CreateBuilder();
 builder.WebHost.UseKestrel(k => { k.AddServerHeader = false; });
 
 var app = builder.Build();
 
-var matcher = new RequestMatcher(mockConfiguration);
-var handler = new RequestHandler(mockConfiguration);
+var matcher = new RequestMatcher(server);
+var handler = new RequestHandler(server);
 app.Run(async context =>
 {
     switch (matcher.TryMatch(context))
@@ -52,4 +41,4 @@ app.Run(async context =>
     }
 });
 
-await app.RunAsync(mockConfiguration.Server.Url);
+await app.RunAsync(server.Url);

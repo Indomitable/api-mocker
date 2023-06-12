@@ -5,19 +5,20 @@ namespace ApiMocker;
 
 public sealed class RequestMatcher
 {
-    private readonly MockConfiguration configuration;
+    private readonly Server server;
 
-    public RequestMatcher(MockConfiguration configuration)
+    public RequestMatcher(Server server)
     {
-        this.configuration = configuration;
+        this.server = server;
     }
 
     public MatchResult TryMatch(HttpContext context)
     {
         var request = context.Request;
+        var mocks = server.Mocks;
         if (!request.Path.HasValue)
         {
-            var emptyPathMocks = configuration.Server.Mocks.Where(m =>
+            var emptyPathMocks = mocks.Where(m =>
                 m.Path == "/" && string.Equals(m.Method, request.Method, StringComparison.OrdinalIgnoreCase)).ToList();
             return emptyPathMocks switch
             {
@@ -28,7 +29,7 @@ public sealed class RequestMatcher
         }
 
         // filter first by http method.
-        var sameMethodMocks = configuration.Server.Mocks.Where(m => string.Equals(m.Method, request.Method, StringComparison.OrdinalIgnoreCase)).ToList();
+        var sameMethodMocks = mocks.Where(m => string.Equals(m.Method, request.Method, StringComparison.OrdinalIgnoreCase)).ToList();
         var samePathMocks = sameMethodMocks
             .Where(m => string.Equals(m.Path, request.Path, StringComparison.OrdinalIgnoreCase)).ToList();
         switch (samePathMocks.Count)
@@ -41,8 +42,7 @@ public sealed class RequestMatcher
 
         foreach (var mock in sameMethodMocks)
         {
-            var regEx = new Regex(mock.Path);
-            var match = regEx.Match(request.Path);
+            var match = mock.Match(request.Path);
             if (match.Success && match.Length == request.Path.Value.Length)
             {
                 // find path mock which matches to the full path.
@@ -58,7 +58,7 @@ public sealed class RequestMatcher
 
 public abstract record MatchResult
 {
-    public record SuccessResult(RequestMock Mock, Dictionary<string, string> PathCaptureGroups) : MatchResult;
+    public record SuccessResult(RequestMock Mock, Dictionary<string, string> Variables) : MatchResult;
 
     public record AmbiguousMocks(string Method, string Path) : MatchResult;
 

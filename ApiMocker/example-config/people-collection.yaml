@@ -1,0 +1,21 @@
+collection:
+  path: /people
+  requests:
+    - method: POST
+      statusCode: 201
+      body: |
+        { "created": true }
+    - method: GET
+      statusCode: 200
+      body: |
+        [
+          { "name": "Person 1" },
+          { "name": "Person 2" }
+        ]
+    - path: (?<id>\d+)
+      method: GET
+      statusCode: 200
+      body: '{ "id": ${id}, "name": "Person 3" }'
+    - path: \d+
+      method: DELETE
+      statusCode: 204

@@ -1,7 +1,10 @@
 ﻿{
   "profiles": {
     "http": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "environmentVariables": {
+        "API_MOCKER_CONFIG": "../example-config/config.yaml"
+      }
     }
   }
 }

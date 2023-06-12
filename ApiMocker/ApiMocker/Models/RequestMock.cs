@@ -1,11 +1,21 @@
+using System.Text.RegularExpressions;
+
 namespace ApiMocker.Models;
 
-public sealed class RequestMock
+public sealed record RequestMock
+(
+    string Path,
+    string Method,
+    int StatusCode,
+    Headers Headers,
+    string? Body,
+    string? File
+)
 {
-    public string Path { get; set; } = "/";
-    public string Method { get; set; } = "GET";
-    public int StatusCode { get; set; } = StatusCodes.Status200OK;
-    public Dictionary<string, string> Headers { get; set; } = new ();
-    public string? Body { get; set; }
-    public string? File { get; set; }
+    Regex pathRegex = new(Path);
+
+    public Match Match(string requestPath)
+    {
+        return pathRegex.Match(requestPath);
+    }
 }
