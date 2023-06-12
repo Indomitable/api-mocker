@@ -33,7 +33,7 @@ foreach (var mock in mockConfiguration.Server.Mocks)
         }
 
         context.Response.ContentLength = Encoding.UTF8.GetByteCount(mock.Body);
-        var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
+        await using var httpWriter = new HttpResponseStreamWriter(context.Response.Body, Encoding.UTF8);
         await httpWriter.WriteAsync(mock.Body);
         await httpWriter.FlushAsync();
     });
