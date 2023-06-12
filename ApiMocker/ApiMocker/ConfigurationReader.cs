@@ -7,41 +7,55 @@ using Server = ApiMocker.Models.Server;
 
 namespace ApiMocker;
 
-public sealed class ConfigurationReader
+public sealed class ConfigurationReader: IDisposable
 {
     private readonly IDeserializer deserializer;
     private readonly string configPath;
+    private readonly FileSystemWatcher mainConfigWatcher;
+    private readonly List<FileSystemWatcher> collectionsWatchers = new();
 
     public ConfigurationReader()
     {
         var path = Environment.GetEnvironmentVariable("API_MOCKER_CONFIG") ?? "./config.yaml";
         configPath = Path.GetFullPath(path);
-        deserializer = new YamlDotNet.Serialization.DeserializerBuilder()
+        deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
+        try
+        {
+            var config = File.ReadAllText(configPath);
+            var configuration = deserializer.Deserialize<Configuration>(config);
+            mainConfigWatcher = CreateFileWatcher(configPath);
+            Server = new Server
+            {
+                Url = configuration.Server.Url,
+            };
+            UpdateServer(configuration, Server);
+        }
+        catch (YamlException e)
+        {
+            throw new Exception($"Unable to deserialize the configuration.\nMessage: {e.Message}\nProblem location: ({e.Start}) - ({e.End})");
+        }
     }
 
-    public Server? Read()
+    public Server Server { get; }
+
+    private void UpdateServerOnChange()
     {
         try
         {
             var config = File.ReadAllText(configPath);
             var configuration = deserializer.Deserialize<Configuration>(config);
-            return BuildServer(configuration, configPath);
+            UpdateServer(configuration, Server);
         }
         catch (YamlException e)
         {
             Console.WriteLine($"Unable to deserialize the configuration. Problem location: ({e.Start}) - ({e.End})");
         }
-        return null;
     }
 
-    private Server BuildServer(Configuration configuration, string configPath)
+    private void UpdateServer(Configuration configuration, Server server)
     {
-        var server = new Server
-        {
-            Url = configuration.Server.Url,
-        };
         var requests = new List<RequestMock>();
         var context = new RequestsContext(new Headers(configuration.Server.Headers), string.Empty, configPath);
         foreach (var collection in configuration.Server.Collections)
@@ -49,7 +63,16 @@ public sealed class ConfigurationReader
             CollectRequests(collection, requests, context);
         }
         server.Mocks = requests;
-        return server;
+        LogMocks(server);
+    }
+
+    private void LogMocks(Server server)
+    {
+        Console.WriteLine("Mocking requests");
+        foreach (var mock in server.Mocks)
+        {
+            Console.WriteLine($"{mock.Method} {mock.Path}");
+        }
     }
 
     private void CollectRequests(Collection collection, List<RequestMock> bucket, RequestsContext context)
@@ -106,19 +129,53 @@ public sealed class ConfigurationReader
         var path = Path.GetFullPath(collectionPath, Path.GetDirectoryName(sourcePath)!);
         try
         {
-            var collection = deserializer.Deserialize<CollectionWrapper>(File.ReadAllText(path)).Collection;
-            if (!string.IsNullOrEmpty(collection.Include))
-            {
-                return LoadCollection(collection.Include, path);
-            }
-
-            return (collection, path);
+            var data = File.ReadAllText(path);
+            var collection = deserializer.Deserialize<CollectionWrapper>(data).Collection;
+            collectionsWatchers.Add(CreateFileWatcher(path));
+            return string.IsNullOrEmpty(collection.Include)
+                ? (collection, path)
+                : LoadCollection(collection.Include, path);
         }
         catch (Exception e)
         {
             Console.WriteLine($"Unable to load collection from path: {path}. Message: {e.Message}");
         }
         return null;
+    }
+
+    private FileSystemWatcher CreateFileWatcher(string path)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        var file = Path.GetFileName(path);
+        var watcher = new FileSystemWatcher(directory, file);
+        watcher.IncludeSubdirectories = false;
+        watcher.NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite;
+        watcher.EnableRaisingEvents = true;
+        watcher.Changed += OnConfigFileChanged;
+        return watcher;
+    }
+
+    private void OnConfigFileChanged(object sender, FileSystemEventArgs args)
+    {
+        DisposeCollectionWatchers(); // If some collection includes are removed or some are added.
+        UpdateServerOnChange();
+    }
+
+    private void DisposeCollectionWatchers()
+    {
+        foreach (var watcher in collectionsWatchers)
+        {
+            watcher.Changed -= OnConfigFileChanged;
+            watcher.Dispose();
+        }
+        collectionsWatchers.Clear();
+    }
+
+    public void Dispose()
+    {
+        mainConfigWatcher.Changed -= OnConfigFileChanged;
+        mainConfigWatcher.Dispose();
+        DisposeCollectionWatchers();
     }
 }
 

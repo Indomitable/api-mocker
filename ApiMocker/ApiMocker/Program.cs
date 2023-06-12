@@ -1,24 +1,13 @@
 using ApiMocker;
 
-var server = new ConfigurationReader().Read();
-if (server is null)
-{
-    return;
-}
-
-Console.WriteLine("Mocking requests");
-foreach (var mock in server.Mocks)
-{
-    Console.WriteLine($"{mock.Method} {mock.Path}");
-}
-
+using var configuration = new ConfigurationReader();
 var builder = WebApplication.CreateBuilder();
 builder.WebHost.UseKestrel(k => { k.AddServerHeader = false; });
 
 var app = builder.Build();
 
-var matcher = new RequestMatcher(server);
-var handler = new RequestHandler(server);
+var matcher = new RequestMatcher(configuration.Server);
+var handler = new RequestHandler(configuration.Server);
 app.Run(async context =>
 {
     switch (matcher.TryMatch(context))
@@ -41,4 +30,4 @@ app.Run(async context =>
     }
 });
 
-await app.RunAsync(server.Url);
+await app.RunAsync(configuration.Server.Url);
