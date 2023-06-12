@@ -1,0 +1,15 @@
+server:
+  url: http://localhost:5020
+  headers:
+    Content-Type: application/json
+  mocks:
+    - path: /test
+      method: GET
+      statusCode: 200
+      headers:
+        x-message: test
+      body: |
+        {
+          "testString": "Test Value",
+          "testNumber": 1
+        }
