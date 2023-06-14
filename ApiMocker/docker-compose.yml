@@ -1,0 +1,10 @@
+version: "3"
+services:
+  api-mocker:
+    image: indomitable/api-mocker:latest
+    ports:
+      - "9090:8080"
+    volumes:
+      - "./example-config:/home/service/config"
+    environment:
+      - API_MOCKER_CONFIG=/home/service/config/config.yaml
