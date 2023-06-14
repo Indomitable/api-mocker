@@ -153,7 +153,7 @@ public sealed class ConfigurationReader: IDisposable
         var file = Path.GetFileName(path);
         var watcher = new FileSystemWatcher(directory, file);
         watcher.IncludeSubdirectories = false;
-        watcher.NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite;
+        watcher.NotifyFilter = NotifyFilters.LastWrite;
         watcher.EnableRaisingEvents = true;
         watcher.Changed += OnConfigFileChanged;
         return watcher;
