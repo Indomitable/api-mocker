@@ -5,15 +5,14 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace ApiMocker;
 
-public sealed class RequestHandler
+public interface IRequestHandler
 {
-    private readonly Server server;
+    Task Handle(HttpContext context, MatchResult.SuccessResult result);
+    Task ErrorHandle(HttpContext context, string message);
+}
 
-    public RequestHandler(Server server)
-    {
-        this.server = server;
-    }
-
+internal sealed class RequestHandler : IRequestHandler
+{
     public async Task Handle(HttpContext context, MatchResult.SuccessResult result)
     {
         var mock = result.Mock;

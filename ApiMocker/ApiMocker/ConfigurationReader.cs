@@ -7,15 +7,23 @@ using Server = ApiMocker.Models.Server;
 
 namespace ApiMocker;
 
-public sealed class ConfigurationReader: IDisposable
+public interface IConfigurationReader : IDisposable
 {
+    Server Server { get; }
+}
+
+internal sealed class ConfigurationReader: IConfigurationReader
+{
+    private readonly ILogger<ConfigurationReader> logger;
     private readonly IDeserializer deserializer;
     private readonly string configPath;
     private readonly FileSystemWatcher mainConfigWatcher;
     private readonly List<FileSystemWatcher> collectionsWatchers = new();
+    private bool disposed;
 
-    public ConfigurationReader()
+    public ConfigurationReader(ILogger<ConfigurationReader> logger)
     {
+        this.logger = logger;
         var path = Environment.GetEnvironmentVariable("API_MOCKER_CONFIG");
         if (string.IsNullOrEmpty(path))
         {
@@ -72,10 +80,10 @@ public sealed class ConfigurationReader: IDisposable
 
     private void LogMocks(Server server)
     {
-        Console.WriteLine("Mocking requests");
+        logger.LogInformation("Mocking requests");
         foreach (var mock in server.Mocks)
         {
-            Console.WriteLine($"{mock.Method} {mock.Path}");
+            logger.LogInformation($"{mock.Method} {mock.Path}");
         }
     }
 
@@ -177,9 +185,14 @@ public sealed class ConfigurationReader: IDisposable
 
     public void Dispose()
     {
+        if (disposed)
+        {
+            return;
+        }
         mainConfigWatcher.Changed -= OnConfigFileChanged;
         mainConfigWatcher.Dispose();
         DisposeCollectionWatchers();
+        disposed = true;
     }
 }
 

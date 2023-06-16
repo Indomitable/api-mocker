@@ -3,13 +3,18 @@ using ApiMocker.Models;
 
 namespace ApiMocker;
 
-public sealed class RequestMatcher
+public interface IRequestMatcher
+{
+    MatchResult TryMatch(HttpContext context);
+}
+
+internal sealed class RequestMatcher : IRequestMatcher
 {
     private readonly Server server;
 
-    public RequestMatcher(Server server)
+    public RequestMatcher(IConfigurationReader configuration)
     {
-        this.server = server;
+        server = configuration.Server;
     }
 
     public MatchResult TryMatch(HttpContext context)
